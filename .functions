@@ -1,0 +1,237 @@
+# Change terminal title. 
+function title {
+    printf "\e]0;$*\a"
+}
+
+# find-in-files using find & grep
+function fif {
+    FIND_OPTS=
+    GREP_OPTS=
+    while [[ $# -gt 1 ]]; do
+        case "$1" in
+            -i|-q|-l|-n|-h|-E)
+                GREP_OPTS="$GREP_OPTS $1"
+                shift
+                ;;
+            -name|-iname|-path|-ipath|-depth|-maxdepth)
+                FIND_OPTS="$FIND_OPTS $1 $2"
+                shift 2
+                ;;
+            -and|-not|-or)
+                FIND_OPTS="$FIND_OPTS $1"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    find . -not -path "*/.git/*" -type f $FIND_OPTS -exec fgrep -I $GREP_OPTS $@ {} +
+}
+
+# Recursive find-in-file using fgrep -R
+# Add -E option to use regex
+function rgrep {
+    fgrep -RI --exclude-dir=".git" $@ .
+}
+
+# find-in-files using git. This is the fastest but lack options that find provides
+# use -a option to search all files, including the one that are not tracked by git.
+function ggrep {
+    GG_OPTS=""
+    if [ "$1" = "-a" ] ; then
+        GG_OPTS="--untracked --no-exclude-standard"
+        shift
+    fi
+    git --no-pager grep $GG_OPTS -FI $@
+}
+
+# Run a git command in all sub-folders that are git repositories
+function git-foreach {
+    for REPO_DOT_GIT in $(find . -type d -name ".git")
+    do
+        REPO=$(dirname "$REPO_DOT_GIT")
+        echo -e "\033[0;35m${REPO}\033[0m"
+        git -C "$REPO" $@
+        echo
+    done
+}
+
+# Wait for {SVC}
+function w4 {
+    case "$1" in
+        qws)
+            PING_URL="$QWS_PING_URL" # Defined in .devenv
+            ;;
+        *)
+            PING_URL="$@"
+            ;;
+    esac
+
+    spinchars='/-\|'
+    SECONDS=0 # This is a handy bash built-in
+    printf "Waiting on %s: `tput sc`" $PING_URL
+    until RESP=$(curl -s -m1 $PING_URL); do 
+        for j in $(seq 5); do 
+            [ $j -eq 1 ] || sleep 1
+            printf "`tput rc``tput sc`%3ss %c " $SECONDS ${spinchars:i++%4}
+        done
+    done
+    echo
+    if [ -n $RESP ]; then
+        echo $RESP | python -m json.tool | pygmentize -l json
+    fi
+}
+
+function jdiff {
+    json_diff -u $1 $2 | pygmentize -g
+}
+
+# Adding aliases capabilities to docker-compose
+function dc {
+    DC_CMD=$1
+    shift
+    case "$DC_CMD" in 
+        ls|services)
+            DC_CMD="config --services"
+            ;;
+        upd)
+            DC_CMD="ud -d"
+            ;;
+        x)
+            DC_CMD="exec $1 bash"
+            shift
+            ;;
+        bash|sh)
+            DC_CMD="run --rm --service-ports $1 bash"
+            shift
+            ;;
+        shell)
+            DC_CMD="exec $1 sh"
+            shift
+            ;;
+        db)
+
+            DC_CMD="$DB_DC_CMD" # Defined in .devenv
+            ;;
+        ddb)
+            DC_CMD="$DDB_DC_CMD" # Defined in .devenv
+            ;;
+    esac
+    docker-compose $DC_CMD $@
+}
+
+# Adding aliases capabilities to kubectl
+function k {
+    K8_CMD=$1
+    shift
+    case "$K8_CMD" in 
+        pods|nodes)
+            K8_CMD="get $K8_CMD"
+            ;;
+        bash|sh)
+            K8_CMD="exec -ti $1 bash"
+            shift
+            ;;
+        ctx)
+            K8_CMD="config current-context"
+            ;;
+        contexts|ctxs)
+            K8_CMD="config get-contexts"
+            ;;
+        *)
+            kubectl config get-contexts -o name | grep -q "^"$K8_CMD"$" && K8_CMD="config use-context $K8_CMD"
+            ;;
+    esac
+    kubectl $K8_CMD $@
+}
+
+# Because "vi" often means "subl"
+function vi {
+    EDITOR_CMD="command -p vi"
+    if [ "$EDITOR" != "vi" ] ; then
+        ALT_EDITOR=${EDITOR:-subl -w}
+        TIMEOUT_ITER=3
+        RESP=
+        echo -n "Vi for real ? I'll run '$ALT_EDITOR' instead [Y/n] $TIMEOUT_ITER " 
+        until read -n 1 -r -t 1 RESP; do
+            TIMEOUT_ITER=$(($TIMEOUT_ITER-1))
+            echo -n "$TIMEOUT_ITER "
+            if [ $TIMEOUT_ITER -le 0 ]; then RESP="Y"; break; fi
+        done
+        # A key, but not 'return' was pressed
+        if [ "$RESP" != "" ]; then echo; fi
+        # N or Escape
+        if [ "$RESP" = "n" ] || [ "$RESP" = "N" ] || [ "$RESP" = $'\e' ] ; then
+            echo fine...
+        else
+            echo "I knew it !"
+            EDITOR_CMD=$ALT_EDITOR
+        fi
+    fi
+    $EDITOR_CMD $@
+}
+
+# Interact with the docker for mac xhyve VM
+function dockerd {
+    ATTACH_CMD='docker run -it --name dockerd --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i'
+
+    function _dockerd_innner_wait {
+        echo -n "Waiting for docker daemon.."
+        until docker info -f '[OK]{{printf "\n"}}Docker server version {{.ServerVersion}} is up and running' 2>/dev/null
+        do
+            sleep 1
+            echo -n .
+        done
+    }
+
+    function _dockerd_inner_stop {
+        HALT_CMD='halt && echo -n "Shutdown in progress.." && while true; do echo -n . ;sleep 1 ;done'
+        $ATTACH_CMD sh -c "$HALT_CMD"
+        echo "[OK]"
+    }
+
+    case "$1" in
+        "stop")
+            _dockerd_inner_stop
+            ;;
+        "restart")
+            _dockerd_inner_stop
+            echo "xhyve VM restarting. "
+            _dockerd_innner_wait
+            ;; 
+        "wait")
+            _dockerd_innner_wait
+            if [ $? -ne 0 ]; then
+                echo "An error occured !"
+            fi
+            ;;
+        "tz")
+            TZ=${2:-Canada/Eastern}
+            $ATTACH_CMD ash -c "rc-service ntpd status || (rc-update add ntpd && rc-service ntpd start && rc-service ntpd status)"
+            $ATTACH_CMD ash -c "[ -f /usr/share/zoneinfo/$TZ ] || apk update && apk add tzdata"
+            $ATTACH_CMD cp /usr/share/zoneinfo/$TZ /etc/localtime
+            $ATTACH_CMD ash -c "echo $TZ > /etc/timezone"
+            $ATTACH_CMD date
+            ;;
+        "tty")
+            screen -S dockerd ~/Library/Containers/com.docker.docker/Data/com.docker.driver.amd64-linux/tty
+            ;;
+        "help" | "-help" | "--help" | "-h" )
+            echo "Usage: ${FUNCNAME[0]} [stop|wait|restart|tty|tz|<shell command>]"
+            echo "With no argument: open a shell attached to the xyhve VM."
+            echo "<shell command> : excute command inside the xhyve VM."
+            echo "tty             : Attach to docker tty (use ctrl-a ctrl-d to detach)"
+            echo "stop            : shutdown the xhyve VM. Docker should restart automatically."
+            echo "wait            : wait for Docker daemon to be accessible."
+            echo "restart         : same as stop + wait"
+            echo "tz              : start ntpd and set timezone to Canada/Eastern"
+            ;;
+        *)
+            $ATTACH_CMD $@
+            ;;
+    esac
+    unset -f _dockerd_inner_stop
+    unset -f _dockerd_inner_wait
+}
+
