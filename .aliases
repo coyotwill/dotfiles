@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # various flavors of ls
 alias ll="ls -Alh"
 alias lrt="ls -Alhrt"

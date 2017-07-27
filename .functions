@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Change terminal title. 
 function title {
     printf "\e]0;$*\a"
