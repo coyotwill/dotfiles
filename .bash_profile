@@ -1,5 +1,5 @@
 if [ -f $HOME/.aliases ]; then
-	source $HOME/.aliases
+    source $HOME/.aliases
     alias aliases='${EDITOR:-"command vi"} ~/.aliases && source ~/.aliases'
 fi
 

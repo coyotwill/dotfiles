@@ -97,9 +97,6 @@ function dc {
         ls|services)
             DC_CMD="config --services"
             ;;
-        upd)
-            DC_CMD="ud -d"
-            ;;
         x)
             DC_CMD="exec $1 bash"
             shift
@@ -113,7 +110,6 @@ function dc {
             shift
             ;;
         db)
-
             DC_CMD="$DB_DC_CMD" # Defined in .devenv
             ;;
         ddb)
