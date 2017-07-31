@@ -32,6 +32,7 @@ alias spotify="/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --
 alias ff="find . -type f -name"
 alias up='cd ./$(git rev-parse --show-cdup)'
 alias gs="git st"
+alias dps="docker ps -a --format 'table {{.ID}}\t{{join (split (js .Image) \"'${MOBI_REGISTRY}'\") \"@\"}}\t{{.RunningFor}}\t{{.Status}}\t{{with join (split (printf \"%s\" .Ports) \"0.0.0.0:\") \"\"}}{{join (split . \"/tcp\") \"\"}}{{end}}\t{{.Names}}'"
 
 # Manage dotfiles from a bare repository
 alias dot='git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
