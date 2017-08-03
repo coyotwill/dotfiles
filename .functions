@@ -59,6 +59,14 @@ function git-foreach {
     done
 }
 
+# lsof for a given ip port number
+function lsop {
+    case "$1" in
+        ''|*[!0-9]*) echo "Usage: ${FUNCNAME[0]}" PORT_NUMBER ;;
+        *) lsof -Pni:$1 ;;
+    esac
+}
+
 # Wait for {SVC}
 function w4 {
     case "$1" in
