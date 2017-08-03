@@ -1,27 +1,28 @@
 [include]
-	path = ~/.gitid
+    path = ~/.gitid
 [alias]
-	co = checkout
-	st = status -bs
-	sti = status -bs --ignored
-	ff = pull --ff-only
-	root = rev-parse --show-toplevel
-	branches = branch -vv --list
-	bra = branch -vv --list
-	ls = ls-files
-	glog = log --pretty=format:'%C(yellow)%h %C(green)%ad%C(red)%d %C(reset)%s %C(blue)[%cn]%C(reset)' --decorate --date=short --graph
-	aliases = !git config --get-regexp 'alias.*' | colrm 1 6 | sed 's/\\([^ ]* \\)/'`printf '\\033[32m%s\\033[0m' '\\1'`'\t/'
-	df = !"f() { git diff --name-status $1... | sed 's/^M/'`printf '\\033[32mM\\033[0m'`'/' | sed 's/^D/'`printf '\\033[31mD\\033[0m'`'/'; }; f"
-	dw = !"f() { git diff $1... -- $2 ; }; f"
+    co      = checkout
+    st      = status -bs
+    sti     = status -bs --ignored
+    ff      = pull --ff-only
+    root    = rev-parse --show-toplevel
+    branches = branch -vv --list
+    bras    = branch -vv --list
+    bra     = branch
+    ls      = ls-files
+    glog    = log --pretty=format:'%C(yellow)%h %C(green)%ad%C(red)%d %C(reset)%s %C(blue)[%cn]%C(reset)' --decorate --date=short --graph
+    aliases = !git config --get-regexp 'alias.*' | colrm 1 6 | sed 's/\\([^ ]* \\)/'`printf '\\033[32m%s\\033[0m' '\\1'`'\t/'
+    df      = !"f() { git diff --name-status $1... | sed 's/^M/'`printf '\\033[32mM\\033[0m'`'/' | sed 's/^D/'`printf '\\033[31mD\\033[0m'`'/'; }; f"
+    dw      = !"f() { git diff $1... -- $2 ; }; f"
 [core]
-	excludesfile = ~/.gitignore
-	whitespace = cr-at-eol,tab-in-indent
+    excludesfile = ~/.gitignore
+    whitespace = cr-at-eol,tab-in-indent
 [diff]
-	tool = kdiff3
+    tool = kdiff3
 [difftool]
-	prompt = no
+    prompt = no
 [merge]
-	tool = kdiff3
+    tool = kdiff3
 [mergetool "p4merge"]
-	keepTemporaries = false
-	prompt = false
+    keepTemporaries = false
+    prompt = false
