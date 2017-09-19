@@ -19,15 +19,15 @@ alias splitargs="sed 's/ -/\'$'\n-/g'"
 # Usage: curl some.url | pj
 alias pj="python -m json.tool | pygmentize -l json"
 
-# Cat and colorize file 
+# Cat and colorize file
 # Usage: dog [-g] myfile.py
-# Lexer is chosen from the file extension. Use '-g' to guess it from the file content instead 
+# Lexer is chosen from the file extension. Use '-g' to guess it from the file content instead
 # Style list: https://help.farbox.com/pygments.html
 alias dog="pygmentize -O style=vim -f terminal256"
 
 # Shortcuts
 alias p4="p4merge"
-alias gup="gitup commit"
+alias gup="gitup"
 alias spotify="/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --app=https://play.spotify.com"
 alias ff="find . -type f -name"
 alias up='cd ./$(git rev-parse --show-cdup)'

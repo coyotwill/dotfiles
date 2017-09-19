@@ -1,8 +1,29 @@
 #!/usr/bin/env bash
 
-# Change terminal title. 
+# Change terminal title.
 function title {
     printf "\e]0;$*\a"
+}
+
+function getHost {
+    for item in ComputerName HostName LocalHostName; do
+        echo -n "$item => "
+        scutil --get $item
+    done
+    echo -n "NetBIOSName => "
+    defaults read /Library/Preferences/SystemConfiguration/com.apple.smb.server NetBIOSName
+}
+
+function setHost {
+    sudo defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server NetBIOSName $1
+
+    for item in ComputerName HostName LocalHostName; do
+        scutil --set $item $1
+    done
+}
+
+function myIps {
+    ifconfig | egrep inet[^6] | tr -d '\t' | egrep ' [0-9\.]+ '
 }
 
 # find-in-files using find & grep
@@ -28,13 +49,13 @@ function fif {
                 ;;
         esac
     done
-    find . -not -path "*/.git/*" -type f $FIND_OPTS -exec fgrep -I $GREP_OPTS $@ {} +
+    find . -not -path "*/.git/*" -type f $FIND_OPTS -exec fgrep -I $GREP_OPTS "$@" {} +
 }
 
 # Recursive find-in-file using fgrep -R
 # Add -E option to use regex
 function rgrep {
-    fgrep -RI --exclude-dir=".git" $@ .
+    fgrep -RI --exclude-dir=".git" "$@" .
 }
 
 # find-in-files using git. This is the fastest but lack options that find provides
@@ -45,7 +66,7 @@ function ggrep {
         GG_OPTS="--untracked --no-exclude-standard"
         shift
     fi
-    git --no-pager grep $GG_OPTS -FI $@
+    git --no-pager grep $GG_OPTS -FI "$@"
 }
 
 # Run a git command in all sub-folders that are git repositories
@@ -54,7 +75,7 @@ function git-foreach {
     do
         REPO=$(dirname "$REPO_DOT_GIT")
         echo -e "\033[0;35m${REPO}\033[0m"
-        git -C "$REPO" $@
+        git -C "$REPO" "$@"
         echo
     done
 }
@@ -81,15 +102,15 @@ function w4 {
     spinchars='/-\|'
     SECONDS=0 # This is a handy bash built-in
     printf "Waiting on %s: `tput sc`" $PING_URL
-    until RESP=$(curl -s -m1 $PING_URL); do 
-        for j in $(seq 5); do 
+    until RESP=$(curl -s -m1 $PING_URL); do
+        for j in $(seq 5); do
             [ $j -eq 1 ] || sleep 1
             printf "`tput rc``tput sc`%3ss %c " $SECONDS ${spinchars:i++%4}
         done
     done
     echo
-    if [ -n $RESP ]; then
-        echo $RESP | python -m json.tool | pygmentize -l json
+    if [ -n "$RESP" ]; then
+        echo "$RESP" | python -m json.tool | pygmentize -l json
     fi
 }
 
@@ -101,7 +122,7 @@ function jdiff {
 function dc {
     DC_CMD=$1
     shift
-    case "$DC_CMD" in 
+    case "$DC_CMD" in
         ls|services)
             DC_CMD="config --services"
             ;;
@@ -124,32 +145,47 @@ function dc {
             DC_CMD="$DDB_DC_CMD" # Defined in .devenv
             ;;
     esac
-    docker-compose $DC_CMD $@
+    docker-compose $DC_CMD "$@"
 }
 
 # Adding aliases capabilities to kubectl
 function k {
-    K8_CMD=$1
-    shift
-    case "$K8_CMD" in 
+    case "$1" in
         pods|nodes)
-            K8_CMD="get $K8_CMD"
+            kubectl get $1
             ;;
         bash|sh)
-            K8_CMD="exec -ti $1 bash"
-            shift
+            pod="$2"
+            shift 2
+            kubectl exec -ti $pod bash
+            ;;
+        x)
+            pod="$2"
+            shift 2
+            kubectl exec -ti $pod "$@"
             ;;
         ctx)
-            K8_CMD="config current-context"
+            kubectl config current-context
             ;;
         contexts|ctxs)
-            K8_CMD="config get-contexts"
+            kubectl config get-contexts
+            ;;
+        cfg|conf|config)
+            ${EDITOR:-"command vi"} ~/.kube/config
+            ;;
+        fw)
+            kubectl port-forward $2 ${3:-5432} &
             ;;
         *)
-            kubectl config get-contexts -o name | grep -q "^"$K8_CMD"$" && K8_CMD="config use-context $K8_CMD"
+            if kubectl config get-contexts -o name | grep -q "^"$1"$" ; then
+                kubectl config use-context "$1"
+                if [ $# -gt 1 ] ; then
+                    shift
+                    k "$@"
+               fi
+            fi
             ;;
     esac
-    kubectl $K8_CMD $@
 }
 
 # Because "vi" often means "subl"
@@ -159,7 +195,7 @@ function vi {
         ALT_EDITOR=${EDITOR:-subl -w}
         TIMEOUT_ITER=3
         RESP=
-        echo -n "Vi for real ? I'll run '$ALT_EDITOR' instead [Y/n] $TIMEOUT_ITER " 
+        echo -n "Vi for real ? I'll run '$ALT_EDITOR' instead [Y/n] $TIMEOUT_ITER "
         until read -n 1 -r -t 1 RESP; do
             TIMEOUT_ITER=$(($TIMEOUT_ITER-1))
             echo -n "$TIMEOUT_ITER "
@@ -205,7 +241,7 @@ function dockerd {
             _dockerd_inner_stop
             echo "xhyve VM restarting. "
             _dockerd_innner_wait
-            ;; 
+            ;;
         "wait")
             _dockerd_innner_wait
             if [ $? -ne 0 ]; then
@@ -234,7 +270,7 @@ function dockerd {
             echo "tz              : start ntpd and set timezone to Canada/Eastern"
             ;;
         *)
-            $ATTACH_CMD $@
+            $ATTACH_CMD "$@"
             ;;
     esac
     unset -f _dockerd_inner_stop
