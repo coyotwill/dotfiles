@@ -174,12 +174,18 @@ function k {
             ${EDITOR:-"command vi"} ~/.kube/config
             ;;
         fw)
-            kubectl port-forward $2 ${3:-5432} &
+            if [ "$#" -gt 1 ] ; then
+                kubectl port-forward $2 ${3:-5432} &
+                echo
+            else
+                echo "Usage: ${FUNCNAME[0]} fw POD [PORT]"
+                echo "Default port is 5432 for postgres"
+            fi
             ;;
         *)
             if kubectl config get-contexts -o name | grep -q "^"$1"$" ; then
                 kubectl config use-context "$1"
-                if [ $# -gt 1 ] ; then
+                if [ "$#" -gt 1 ] ; then
                     shift
                     k "$@"
                fi
