@@ -185,10 +185,12 @@ function k {
         *)
             if kubectl config get-contexts -o name | grep -q "^"$1"$" ; then
                 kubectl config use-context "$1"
+                shift
                 if [ "$#" -gt 1 ] ; then
-                    shift
                     k "$@"
                fi
+            else
+                kubectl "$@"
             fi
             ;;
     esac
@@ -224,7 +226,7 @@ function vi {
 function dockerd {
     ATTACH_CMD='docker run -it --name dockerd --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i'
 
-    function _dockerd_innner_wait {
+    function _dockerd_inner_wait {
         echo -n "Waiting for docker daemon.."
         until docker info -f '[OK]{{printf "\n"}}Docker server version {{.ServerVersion}} is up and running' 2>/dev/null
         do
@@ -246,10 +248,10 @@ function dockerd {
         "restart")
             _dockerd_inner_stop
             echo "xhyve VM restarting. "
-            _dockerd_innner_wait
+            _dockerd_inner_wait
             ;;
         "wait")
-            _dockerd_innner_wait
+            _dockerd_inner_wait
             if [ $? -ne 0 ]; then
                 echo "An error occured !"
             fi
@@ -274,6 +276,9 @@ function dockerd {
             echo "wait            : wait for Docker daemon to be accessible."
             echo "restart         : same as stop + wait"
             echo "tz              : start ntpd and set timezone to Canada/Eastern"
+            ;;
+        "")
+            $ATTACH_CMD ash
             ;;
         *)
             $ATTACH_CMD "$@"
