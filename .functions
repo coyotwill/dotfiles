@@ -6,6 +6,7 @@ function title {
 }
 
 function getHost {
+    local item
     for item in ComputerName HostName LocalHostName; do
         echo -n "$item => "
         scutil --get $item
@@ -16,21 +17,35 @@ function getHost {
 
 function setHost {
     sudo defaults write /Library/Preferences/SystemConfiguration/com.apple.smb.server NetBIOSName $1
-
+    local item
     for item in ComputerName HostName LocalHostName; do
         scutil --set $item $1
     done
 }
 
 function myIps {
-    ifconfig | egrep inet[^6] | tr -d '\t' | egrep ' [0-9\.]+ '
+    local IFS=$(echo -en "\n\b") 
+    local ifce
+    for ifce in $(networksetup -listallnetworkservices | egrep -v "\*|LPSS|Bluetooth|Thunderbolt"); do 
+        IFS=
+        echo -e "\033[0;35m${ifce}\033[0m"
+        local ifceinfo=$(networksetup -getinfo "$ifce" | egrep -v "Client ID|IPv6|DHCP")
+        local ifceip=$(echo $ifceinfo | egrep '^IP address' | cut -d ' ' -f 3)
+        if [ -n "$ifceip" ]; then
+            echo $ifceinfo | hl $ifceip
+            local ifcedns=$(dig +short -x $ifceip)
+            echo -e "DNS record: \033[0;92m${ifcedns}\033[0m"
+        else
+            echo $ifceinfo
+        fi
+        echo
+    done
 }
 
 # find-in-files using find & grep
 function fif {
-    FIND_OPTS=
-    GREP_OPTS=
-    while [[ $# -gt 1 ]]; do
+    local FIND_OPTS GREP_OPTS
+    while [ $# -gt 1 ]; do
         case "$1" in
             -i|-q|-l|-n|-h|-E)
                 GREP_OPTS="$GREP_OPTS $1"
@@ -61,23 +76,33 @@ function rgrep {
 # find-in-files using git. This is the fastest but lack options that find provides
 # use -a option to search all files, including the one that are not tracked by git.
 function ggrep {
-    GG_OPTS=""
     if [ "$1" = "-a" ] ; then
-        GG_OPTS="--untracked --no-exclude-standard"
+        local GG_OPTS="--untracked --no-exclude-standard"
         shift
     fi
     git --no-pager grep $GG_OPTS -FI "$@"
 }
 
+# Use grep to higlight occurences, but print whole input.
+function hl {
+    cat - | egrep "$@|$"
+}
+
+
 # Run a git command in all sub-folders that are git repositories
 function git-foreach {
-    for REPO_DOT_GIT in $(find . -type d -name ".git")
+    local REPO_DOT_GIT REPO
+    for REPO_DOT_GIT in $(find . -type d -name ".git" | sort)
     do
         REPO=$(dirname "$REPO_DOT_GIT")
         echo -e "\033[0;35m${REPO}\033[0m"
         git -C "$REPO" "$@"
         echo
     done
+}
+
+function diff-diff {
+    diff <(git show $1) <(git show $2)
 }
 
 # lsof for a given ip port number
@@ -90,6 +115,7 @@ function lsop {
 
 # Wait for {SVC}
 function w4 {
+    local PING_URLqq
     case "$1" in
         qws)
             PING_URL="$QWS_PING_URL" # Defined in .devenv
@@ -102,6 +128,7 @@ function w4 {
     spinchars='/-\|'
     SECONDS=0 # This is a handy bash built-in
     printf "Waiting on %s: `tput sc`" $PING_URL
+    local RESP jqq
     until RESP=$(curl -s -m1 $PING_URL); do
         for j in $(seq 5); do
             [ $j -eq 1 ] || sleep 1
@@ -118,25 +145,95 @@ function jdiff {
     json_diff -u $1 $2 | pygmentize -g
 }
 
+# Rebuild project with fastest options
+function rebuild {
+    if [ "$1" = "-h" ] || [ "$1" = "--help" ] ; then
+        echo "Usage: ${FUNCNAME[0]} [-h] [-a] [-o]"
+        echo "  -h : Print help"
+        echo "  -a : Build all subprojects, not only server"
+        echo "  -o : Online (negates the offline flag)"
+    else
+        local plst="-pl .,core,server"
+        local offline="-o"
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -a)
+                    unset plst
+                    shift
+                    ;;
+                -o)
+                    unset offline
+                    shift
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        mvn clean install -Pdev $offline $plst 
+    fi
+}
+
+
+
+# Rebuild project and run unit tests
+function retest {
+    if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ] ; then
+        echo "Usage: ${FUNCNAME[0]} [-h] [-s] [-d] <test>"
+        echo "  -h : Print help"
+        echo "  -s : Skip build+install phases"
+        echo "  -d : Run in debug mode"
+    else
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -d)
+                    local dbg_args="-Dmaven.surefire.debug"
+                    shift
+                    ;;
+                -s)
+                    local skip_build="skip"
+                    shift
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        if [ -z "$skip_build" ]; then
+            rebuild
+        fi
+        echo "Now testing: $1"
+        docker-compose run --rm --service-ports server mvn test -pl server -o $dbg_args -Dtest="$1"
+    fi
+qq
+}
+
 # Adding aliases capabilities to docker-compose
 function dc {
-    DC_CMD=$1
+    local DC_CMD=$1
     shift
     case "$DC_CMD" in
         ls|services)
             DC_CMD="config --services"
             ;;
-        x)
+        sh)
             DC_CMD="exec $1 bash"
             shift
             ;;
-        bash|sh)
+        runbash)
             DC_CMD="run --rm --service-ports $1 bash"
             shift
             ;;
-        shell)
-            DC_CMD="exec $1 sh"
-            shift
+        logs)
+            if [[ "$1" =~ ^-([0-9]*)f?$ ]]; then
+                DC_CMD="$DC_CMD -f --tail=${BASH_REMATCH[1]:-1}"
+                shift
+            fi
+            ;;
+        down)
+            if [[ $# -gt 0 ]]; then
+                DC_CMD="rm -vfs"
+            fi
             ;;
         db)
             DC_CMD="$DB_DC_CMD" # Defined in .devenv
@@ -148,24 +245,78 @@ function dc {
     docker-compose $DC_CMD "$@"
 }
 
+function kfw {
+    local fwport=${2:-5432}
+    local pid=$(lsof -tPni4:$fwport -sTCP:LISTEN)
+    if [ -n "$pid" ]; then
+        local fwnode=$(ps -e -o command= $pid | cut -d ' ' -f 3)
+    fi
+
+    case "$1" in
+        stop)
+            if [ -n "$pid" ]; then
+               kill $pid
+               wait $pid
+            fi
+            ${FUNCNAME[0]} status $fwport
+            ;;
+        re*)
+            ${FUNCNAME[0]} stop $fwport
+            if [ -n "$fwnode" ]; then
+                ${FUNCNAME[0]} $fwnode $fwport
+            fi
+            ;;
+        status|"")            
+            if [ -z "$pid" ]; then
+                echo -e "Port forwarding to :$fwport is [\033[0;91mOff\033[0m]"
+            else
+                echo -e "Port forwarding to \033[0;91m${fwnode}\033[0m:$fwport is [\033[0;92mOn\033[0m]"
+            fi
+            ;;
+        help|-h|--help)
+            echo "Usage: ${FUNCNAME[0]} [<POD>|stop|restart|status] [PORT]"
+            echo "Default port is 5432, for postgres"
+            ;;
+        *)
+            if [ -z "$pid" ]; then
+                kubectl port-forward $1 $fwport &
+                echo
+                sleep 1
+                ${FUNCNAME[0]} status $fwport
+            else
+                local fwcomm=$(ps -e -o comm= $pid)
+                echo -e "Port \033[0;91m${fwport}\033[0m already in use by \033[0;91m${fwcomm}\033[0m:"
+                ps -ewf $pid
+            fi
+    esac
+}
+
 # Adding aliases capabilities to kubectl
 function k {
     case "$1" in
-        pods|nodes)
-            kubectl get $1
+        po*|no*)
+            k context 
+            if [ $# -gt 1 ] && [ "${2:0:1}" != "-" ]; then
+                local rsc="$1"
+                local grp="$2"
+                shift 2
+                kubectl get $rsc "$@" | grep $grp
+            else 
+                kubectl get "$@"
+            fi
             ;;
         bash|sh)
-            pod="$2"
+            local pod="$2"
             shift 2
-            kubectl exec -ti $pod bash
+            kubectl exec -ti $pod -- ${@:-bash}
             ;;
-        x)
-            pod="$2"
-            shift 2
-            kubectl exec -ti $pod "$@"
-            ;;
-        ctx)
-            kubectl config current-context
+        context|ctx)
+            local CTX=$(kubectl config current-context)
+            if [ "$CTX" = "prod" ]; then 
+                echo -e "Current context: [\033[5;7;91m${CTX}\033[0m]"
+            else
+                echo -e "Current context: [\033[0;95m${CTX}\033[0m]"
+            fi
             ;;
         contexts|ctxs)
             kubectl config get-contexts
@@ -174,19 +325,14 @@ function k {
             ${EDITOR:-"command vi"} ~/.kube/config
             ;;
         fw)
-            if [ "$#" -gt 1 ] ; then
-                kubectl port-forward $2 ${3:-5432} &
-                echo
-            else
-                echo "Usage: ${FUNCNAME[0]} fw POD [PORT]"
-                echo "Default port is 5432 for postgres"
-            fi
+            shift
+            kfw "$@"
             ;;
         *)
             if kubectl config get-contexts -o name | grep -q "^"$1"$" ; then
                 kubectl config use-context "$1"
-                shift
-                if [ "$#" -gt 1 ] ; then
+                if [ $# -gt 1 ] ; then
+                    shift
                     k "$@"
                fi
             else
@@ -196,13 +342,22 @@ function k {
     esac
 }
 
+function pgcli {
+    if [ "$#" -eq 1 ] ; then
+        local dUser="postgres"
+    fi
+    source ~/dev/pgcli.venv/bin/activate
+    command pgcli -h localhost "$@" $dUser
+    deactivate
+}
+
 # Because "vi" often means "subl"
 function vi {
-    EDITOR_CMD="command -p vi"
+    local EDITOR_CMD="command -p vi"
     if [ "$EDITOR" != "vi" ] ; then
-        ALT_EDITOR=${EDITOR:-subl -w}
-        TIMEOUT_ITER=3
-        RESP=
+        local ALT_EDITOR=${EDITOR:-subl -w}
+        local RESP TIMEOUT_ITER=3
+        local RESP
         echo -n "Vi for real ? I'll run '$ALT_EDITOR' instead [Y/n] $TIMEOUT_ITER "
         until read -n 1 -r -t 1 RESP; do
             TIMEOUT_ITER=$(($TIMEOUT_ITER-1))
@@ -224,7 +379,7 @@ function vi {
 
 # Interact with the docker for mac xhyve VM
 function dockerd {
-    ATTACH_CMD='docker run -it --name dockerd --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i'
+    local ATTACH_CMD='docker run -it --name dockerd --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i'
 
     function _dockerd_inner_wait {
         echo -n "Waiting for docker daemon.."
@@ -236,7 +391,7 @@ function dockerd {
     }
 
     function _dockerd_inner_stop {
-        HALT_CMD='halt && echo -n "Shutdown in progress.." && while true; do echo -n . ;sleep 1 ;done'
+        local HALT_CMD='halt && echo -n "Shutdown in progress.." && while true; do echo -n . ;sleep 1 ;done'
         $ATTACH_CMD sh -c "$HALT_CMD"
         echo "[OK]"
     }
@@ -257,7 +412,7 @@ function dockerd {
             fi
             ;;
         "tz")
-            TZ=${2:-Canada/Eastern}
+            local TZ=${2:-Canada/Eastern}
             $ATTACH_CMD ash -c "rc-service ntpd status || (rc-update add ntpd && rc-service ntpd start && rc-service ntpd status)"
             $ATTACH_CMD ash -c "[ -f /usr/share/zoneinfo/$TZ ] || apk update && apk add tzdata"
             $ATTACH_CMD cp /usr/share/zoneinfo/$TZ /etc/localtime

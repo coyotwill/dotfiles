@@ -25,6 +25,10 @@ alias pj="python -m json.tool | pygmentize -l json"
 # Style list: https://help.farbox.com/pygments.html
 alias dog="pygmentize -O style=vim -f terminal256"
 
+# Run stuffs with the `script` command in order to preserve raw output
+# (and then color escape code) while piping commands together.
+alias pc="script -q /dev/null"
+
 # Shortcuts
 alias p4="p4merge"
 alias gup="gitup"
@@ -33,6 +37,8 @@ alias ff="find . -type f -name"
 alias up='cd ./$(git rev-parse --show-cdup)'
 alias gs="git st"
 alias dps="docker ps -a --format 'table {{.ID}}\t{{join (split (js .Image) \"'${MOBI_REGISTRY}'\") \"@\"}}\t{{.RunningFor}}\t{{.Status}}\t{{with join (split (printf \"%s\" .Ports) \"0.0.0.0:\") \"\"}}{{join (split . \"/tcp\") \"\"}}{{end}}\t{{.Names}}'"
+alias dl='cd ~/Downloads'
+alias flush-dns='echo -n "Sudo " && sudo killall -HUP mDNSResponder'
 
 # Manage dotfiles from a bare repository
 alias dot='git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'

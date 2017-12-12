@@ -1,28 +1,39 @@
 [include]
     path = ~/.gitid
 [alias]
-    co      = checkout
-    st      = status -bs
-    sti     = status -bs --ignored
-    ff      = pull --ff-only
-    root    = rev-parse --show-toplevel
-    branches = branch -vv --list
-    bras    = branch -vv --list
-    bra     = branch
-    ls      = ls-files
-    glog    = log --pretty=format:'%C(yellow)%h %C(green)%ad%C(red)%d %C(reset)%s %C(blue)[%cn]%C(reset)' --decorate --date=short --graph
-    aliases = !git config --get-regexp 'alias.*' | colrm 1 6 | sed 's/\\([^ ]* \\)/'`printf '\\033[32m%s\\033[0m' '\\1'`'\t/'
-    df      = !"f() { git diff --name-status $1... | sed 's/^M/'`printf '\\033[32mM\\033[0m'`'/' | sed 's/^D/'`printf '\\033[31mD\\033[0m'`'/'; }; f"
-    dw      = !"f() { git diff $1... -- $2 ; }; f"
+    co       = checkout
+    st       = status -bs
+    sti      = status -bs --ignored
+    ff       = pull --ff-only
+    root     = rev-parse --show-toplevel
+    branches = !script -q /dev/null git branch --list -vv | tr '\\r' '~' | cut -d '~' -f 1
+    bras     = !git branches
+    bra      = branch
+    ls       = ls-files
+    glog     = log --pretty=format:'%C(yellow)%h %C(green)%ad%C(red)%d %C(reset)%s %C(blue)[%cn]%C(reset)' --decorate --date=short --graph
+    aliases  = !git config --get-regexp 'alias.*' | colrm 1 6 | sed 's/\\([^ ]* \\)/'`printf '\\033[32m%s\\033[0m' '\\1'`'\t/'
+    ### list modified files in current repository with common ancestor from revision $1
+    df       = !"f() { git diff --name-status $1... | sed 's/^M/'`printf '\\033[32mM\\033[0m'`'/' | sed 's/^D/'`printf '\\033[31mD\\033[0m'`'/'; }; f"
+    ### diff current version of file $2 with common ancestor from revision $1
+    dw       = !"f() { git diff $1... -- $2 ; }; f"
+    ### cat file $2 at revision $1
+    cat      = !"f() { git show $1:$2 ; }; f"
 [core]
     excludesfile = ~/.gitignore
     whitespace = cr-at-eol,tab-in-indent
 [diff]
-    tool = kdiff3
+	tool = kdiff3
+    # algorithm = patience
 [difftool]
-    prompt = no
+	prompt = false
 [merge]
-    tool = kdiff3
+	tool = kdiff3
 [mergetool "p4merge"]
     keepTemporaries = false
     prompt = false
+[difftool  "deltawalker"]
+	cmd = '/Applications/DeltaWalker.app/Contents/Resources/git-diff' "$LOCAL" "$REMOTE"
+[mergetool]
+	keepBackup = false
+[mergetool  "deltawalker"]
+	cmd = '/Applications/DeltaWalker.app/Contents/Resources/git-merge' "$LOCAL" "$REMOTE" "$BASE" "$MERGED"
