@@ -22,12 +22,12 @@
     excludesfile = ~/.gitignore
     whitespace = cr-at-eol,tab-in-indent
 [diff]
-	tool = kdiff3
+	tool = deltawalker
     # algorithm = patience
 [difftool]
 	prompt = false
 [merge]
-	tool = kdiff3
+	tool = deltawalker
 [mergetool "p4merge"]
     keepTemporaries = false
     prompt = false

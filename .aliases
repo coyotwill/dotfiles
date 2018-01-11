@@ -9,6 +9,7 @@ alias alais="alias"
 alias got="git"
 alias dicker="docker"
 alias maven="mvn"
+alias vi="subl"
 alias cd..="cd .."
 
 # Split a list of arguments into lines
@@ -31,12 +32,12 @@ alias pc="script -q /dev/null"
 
 # Shortcuts
 alias p4="p4merge"
+alias delta="open -a DeltaWalker --args"
 alias gup="gitup"
-alias spotify="/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --app=https://play.spotify.com"
+alias spotify="appify https://play.spotify.com"
 alias ff="find . -type f -name"
 alias up='cd ./$(git rev-parse --show-cdup)'
 alias gs="git st"
-alias dps="docker ps -a --format 'table {{.ID}}\t{{join (split (js .Image) \"'${MOBI_REGISTRY}'\") \"@\"}}\t{{.RunningFor}}\t{{.Status}}\t{{with join (split (printf \"%s\" .Ports) \"0.0.0.0:\") \"\"}}{{join (split . \"/tcp\") \"\"}}{{end}}\t{{.Names}}'"
 alias dl='cd ~/Downloads'
 alias flush-dns='echo -n "Sudo " && sudo killall -HUP mDNSResponder'
 

@@ -23,23 +23,31 @@ function setHost {
     done
 }
 
+# Check assigned IPs and DNS records for all connected interfaces
 function myIps {
-    local IFS=$(echo -en "\n\b") 
     local ifce
-    for ifce in $(networksetup -listallnetworkservices | egrep -v "\*|LPSS|Bluetooth|Thunderbolt"); do 
-        IFS=
-        echo -e "\033[0;35m${ifce}\033[0m"
+    while read -r ifce; do
+        echo -e "$(clr purple $ifce)"
         local ifceinfo=$(networksetup -getinfo "$ifce" | egrep -v "Client ID|IPv6|DHCP")
         local ifceip=$(echo $ifceinfo | egrep '^IP address' | cut -d ' ' -f 3)
         if [ -n "$ifceip" ]; then
-            echo $ifceinfo | hl $ifceip
+            echo "$ifceinfo" | hl $ifceip
             local ifcedns=$(dig +short -x $ifceip)
-            echo -e "DNS record: \033[0;92m${ifcedns}\033[0m"
+            echo -e "DNS record: $(clr green $ifcedns)"
         else
-            echo $ifceinfo
+            echo "$ifceinfo"
         fi
         echo
-    done
+    done <<< "$(networksetup -listallnetworkservices | egrep -v '\*|LPSS|Bluetooth|Thunderbolt')"
+}
+
+function appify {
+    open -n -a "Google Chrome" --args --app="$1"
+}
+
+# Find login item password in keychain by name (=label)
+function get-keychain-pw {
+   security find-generic-password -w -l "$1"
 }
 
 # find-in-files using find & grep
@@ -95,54 +103,77 @@ function git-foreach {
     for REPO_DOT_GIT in $(find . -type d -name ".git" | sort)
     do
         REPO=$(dirname "$REPO_DOT_GIT")
-        echo -e "\033[0;35m${REPO}\033[0m"
+        echo -e "$(clr purple $REPO)"
         git -C "$REPO" "$@"
         echo
     done
 }
 
+# Show diff between 2 diffs
 function diff-diff {
     diff <(git show $1) <(git show $2)
 }
 
-# lsof for a given ip port number
-function lsop {
-    case "$1" in
-        ''|*[!0-9]*) echo "Usage: ${FUNCNAME[0]}" PORT_NUMBER ;;
-        *) lsof -Pni:$1 ;;
-    esac
-}
-
-# Wait for {SVC}
-function w4 {
-    local PING_URLqq
-    case "$1" in
-        qws)
-            PING_URL="$QWS_PING_URL" # Defined in .devenv
-            ;;
-        *)
-            PING_URL="$@"
-            ;;
-    esac
-
-    spinchars='/-\|'
-    SECONDS=0 # This is a handy bash built-in
-    printf "Waiting on %s: `tput sc`" $PING_URL
-    local RESP jqq
-    until RESP=$(curl -s -m1 $PING_URL); do
-        for j in $(seq 5); do
-            [ $j -eq 1 ] || sleep 1
-            printf "`tput rc``tput sc`%3ss %c " $SECONDS ${spinchars:i++%4}
-        done
-    done
-    echo
-    if [ -n "$RESP" ]; then
-        echo "$RESP" | python -m json.tool | pygmentize -l json
-    fi
-}
-
+# Diff 2 json documents and colorize output
 function jdiff {
     json_diff -u $1 $2 | pygmentize -g
+}
+
+# lsof for a given IP port number
+function lsop {
+    case "$1" in
+        ''|*[!0-9]*)
+            echo "Usage: ${FUNCNAME[0]}" PORT_NUMBER ;;
+        *)
+            lsof -Pni:$1 ;;
+    esac
+}
+
+# Wait until process is terminated
+function wait4pid {
+    while ps -p "$1" >/dev/null 2>&1; do 
+        sleep 0.333
+    done
+}
+
+# Echo color escape sequence
+function clr {
+    local CLR_CODE="0"
+    case $(echo "$1" | tr '[:upper:]' '[:lower:]') in
+        alt0)
+            CLR_CODE="0;97";;
+        alt1)
+            CLR_CODE="0;90";;
+        red|off)
+            CLR_CODE="0;91";;
+        green|on|ok)
+            CLR_CODE="0;92";;
+        yellow)
+            CLR_CODE="0;93";;
+        blue)
+            CLR_CODE="0;94";;
+        magenta|purple|info)
+            CLR_CODE="0;35";;
+        warn*)
+            CLR_CODE="5;7;91";;
+    esac
+    shift
+    echo -ne "\033[${CLR_CODE}m""$@""\033[0m"
+}
+
+# Print ON/OFF status 
+function on-off {
+    local ON_OFF=$([ -n "$1" ] && echo "On" || echo "Off")    
+    echo -ne "[$(clr $ON_OFF $ON_OFF)]"
+}
+
+function alt {
+    local FLAG=0
+    while read -r line
+    do
+        echo -e "$(clr alt$FLAG "$line")"
+        FLAG=$((1-FLAG))
+    done
 }
 
 # Rebuild project with fastest options
@@ -152,28 +183,28 @@ function rebuild {
         echo "  -h : Print help"
         echo "  -a : Build all subprojects, not only server"
         echo "  -o : Online (negates the offline flag)"
-    else
-        local plst="-pl .,core,server"
-        local offline="-o"
-        while [ $# -gt 0 ]; do
-            case "$1" in
-                -a)
-                    unset plst
-                    shift
-                    ;;
-                -o)
-                    unset offline
-                    shift
-                    ;;
-                *)
-                    break
-                    ;;
-            esac
-        done
-        mvn clean install -Pdev $offline $plst 
+        return 
     fi
-}
 
+    local plst="-pl .,core,server"
+    local offline="-o"
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -a)
+                unset plst
+                shift
+                ;;
+            -o)
+                unset offline
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    mvn clean install -Pdev $offline $plst 
+}
 
 
 # Rebuild project and run unit tests
@@ -182,31 +213,37 @@ function retest {
         echo "Usage: ${FUNCNAME[0]} [-h] [-s] [-d] <test>"
         echo "  -h : Print help"
         echo "  -s : Skip build+install phases"
+        echo "  -o : Online (negates the offline flag)"
         echo "  -d : Run in debug mode"
-    else
-        while [ $# -gt 0 ]; do
-            case "$1" in
-                -d)
-                    local dbg_args="-Dmaven.surefire.debug"
-                    shift
-                    ;;
-                -s)
-                    local skip_build="skip"
-                    shift
-                    ;;
-                *)
-                    break
-                    ;;
-            esac
-        done
-        if [ -z "$skip_build" ]; then
-            rebuild
-        fi
-        echo "Now testing: $1"
-        docker-compose run --rm --service-ports server mvn test -pl server -o $dbg_args -Dtest="$1"
+        return
     fi
-qq
+
+    local offline="-o"
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -d)
+                local dbg_args="-Dmaven.surefire.debug"
+                shift
+                ;;
+            -s)
+                local skip_build="skip"
+                shift
+                ;;
+            -o)
+                unset offline
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    [ -z "$skip_build" ] && rebuild $offline
+
+    echo "Now testing: $1"
+    docker-compose run --rm --service-ports server mvn test -pl server $offline $dbg_args -Dtest="$1"
 }
+
 
 # Adding aliases capabilities to docker-compose
 function dc {
@@ -224,7 +261,8 @@ function dc {
             DC_CMD="run --rm --service-ports $1 bash"
             shift
             ;;
-        logs)
+        logs|tail)
+            DC_CMD="logs"
             if [[ "$1" =~ ^-([0-9]*)f?$ ]]; then
                 DC_CMD="$DC_CMD -f --tail=${BASH_REMATCH[1]:-1}"
                 shift
@@ -235,88 +273,129 @@ function dc {
                 DC_CMD="rm -vfs"
             fi
             ;;
-        db)
-            DC_CMD="$DB_DC_CMD" # Defined in .devenv
-            ;;
-        ddb)
-            DC_CMD="$DDB_DC_CMD" # Defined in .devenv
-            ;;
     esac
     docker-compose $DC_CMD "$@"
 }
 
-function kfw {
-    local fwport=${2:-5432}
-    local pid=$(lsof -tPni4:$fwport -sTCP:LISTEN)
-    if [ -n "$pid" ]; then
-        local fwnode=$(ps -e -o command= $pid | cut -d ' ' -f 3)
+# Compact and readable docker ps output
+function dps {
+    local IMAGE='{{join (split (js .Image) "'${MOBI_REGISTRY}'") "@"}}'
+    local PORTS='{{with join (split (printf "%s" .Ports) "0.0.0.0:") ""}}{{join (split . "/tcp") ""}}{{end}}'
+    docker ps -a --format 'table {{.ID}}\t'"$IMAGE"'\t{{.RunningFor}}\t{{.Status}}\t'"$PORTS"'\t{{.Names}}' | alt
+}
+
+# Setup kubectl port-forwarding
+# Default port is 5432 for postgres, but can be changed
+function k-forward {
+    local LOCAL_PORT=${2:-5432}
+    local FORWARD_PORT=${3:-$LOCAL_PORT}
+    local FW_PID=$(lsof -tPni4:$LOCAL_PORT -sTCP:LISTEN)
+    if [ -n "$FW_PID" ]; then
+        local FW_NODE=$(ps -e -o command= $FW_PID | cut -d ' ' -f 3)
     fi
 
     case "$1" in
+        help|-h|--help)
+            echo "Usage: ${FUNCNAME[0]} <POD-SELECTOR>|stop|restart|status [LOCAL_PORT [FORWARD_PORT]]"
+            echo "Default forward port is 5432, for postgres"
+            ;;
         stop)
-            if [ -n "$pid" ]; then
-               kill $pid
-               wait $pid
+            if [ -n "$FW_PID" ]; then
+               kill $FW_PID
+               wait4pid $FW_PID
             fi
-            ${FUNCNAME[0]} status $fwport
+            ${FUNCNAME[0]} status $LOCAL_PORT
             ;;
         re*)
-            ${FUNCNAME[0]} stop $fwport
-            if [ -n "$fwnode" ]; then
-                ${FUNCNAME[0]} $fwnode $fwport
+            ${FUNCNAME[0]} stop $LOCAL_PORT
+            if [ -n "$FW_NODE" ]; then
+                ${FUNCNAME[0]} $FW_NODE $LOCAL_PORT $FORWARD_PORT
             fi
             ;;
-        status|"")            
-            if [ -z "$pid" ]; then
-                echo -e "Port forwarding to :$fwport is [\033[0;91mOff\033[0m]"
-            else
-                echo -e "Port forwarding to \033[0;91m${fwnode}\033[0m:$fwport is [\033[0;92mOn\033[0m]"
-            fi
-            ;;
-        help|-h|--help)
-            echo "Usage: ${FUNCNAME[0]} [<POD>|stop|restart|status] [PORT]"
-            echo "Default port is 5432, for postgres"
+        status|"")
+            echo -e "Port forwarding $(clr red $FW_NODE):$LOCAL_PORT->$FORWARD_PORT is $(on-off $FW_PID)"
             ;;
         *)
-            if [ -z "$pid" ]; then
-                kubectl port-forward $1 $fwport &
-                echo
-                sleep 1
-                ${FUNCNAME[0]} status $fwport
+            if [ -z "$FW_PID" ]; then
+                k context
+                local FW_NODE=$(k-select "$1")
+                if [ -n "$FW_NODE" ]; then
+                    kubectl port-forward $FW_NODE $LOCAL_PORT:$FORWARD_PORT > /dev/null &
+                    sleep 1
+                    ${FUNCNAME[0]} status $LOCAL_PORT
+                fi
             else
-                local fwcomm=$(ps -e -o comm= $pid)
-                echo -e "Port \033[0;91m${fwport}\033[0m already in use by \033[0;91m${fwcomm}\033[0m:"
-                ps -ewf $pid
+                local FW_COMMAND=$(ps -e -o comm= $FW_PID)
+                echo -e "Port $(clr red $LOCAL_PORT) already in use by $(clr red $FW_COMMAND):"
+                ps -ewf $FW_PID
             fi
     esac
+}
+
+
+# Run kubectl command in all pods from the same deployment
+function k-foreach {
+    if [ $# -lt 2 ]; then
+        echo "Usage: ${FUNCNAME[0]} <POD-SELECTOR> COMMAND [-c CONTAINER] [ARGS...]"
+        echo "E.g. ${FUNCNAME[0]} server exec -- pwd"
+        return 1
+    fi
+
+    k context
+    local PODS=$(k-select "$1")
+    local NUM_PODS=$(echo $PODS | wc -w)
+    [ $NUM_PODS -ge 1 ] || return 1
+
+    local K8_CMD="$2"
+    shift 2
+
+    echo -e "Running $(clr red $K8_CMD) in: $(clr green $(echo $PODS | sed 's/ /, /g'))" >&2
+    local POD
+    for POD in $PODS; do 
+        [ $NUM_PODS -gt 1 ] && echo -e "$(clr purple $POD)"
+        kubectl "$K8_CMD" "$POD" "$@" 
+    done
+}
+
+# Select pod(s) by name or short-name
+function k-select {
+    local SELECTOR=$(k-get-selector "$1") # defined in .devenv
+    if [ -n "$SELECTOR" ]; then
+        kubectl get pods -l run=$SELECTOR -o jsonpath="{.items[*].metadata.name}"
+    else
+        local PODS=$(kubectl get pods "$1" -o name)
+        if [ $? -eq 0 ]; then
+            echo $PODS | cut -d / -f 2
+        else
+            return 1
+        fi
+    fi
 }
 
 # Adding aliases capabilities to kubectl
 function k {
     case "$1" in
-        po*|no*)
-            k context 
+        po|pod|pods|no|node|nodes)
+            ${FUNCNAME[0]} context 
             if [ $# -gt 1 ] && [ "${2:0:1}" != "-" ]; then
-                local rsc="$1"
-                local grp="$2"
+                local RESOURCE="$1"
+                local GREP_STR="$2"
                 shift 2
-                kubectl get $rsc "$@" | grep $grp
+                kubectl get "$RESOURCE" "$@" | grep "$GREP_STR"
             else 
                 kubectl get "$@"
             fi
             ;;
         bash|sh)
-            local pod="$2"
+            local POD=$(k-select "$2")
             shift 2
-            kubectl exec -ti $pod -- ${@:-bash}
+            kubectl exec -ti $POD -- ${@:-bash}
             ;;
         context|ctx)
             local CTX=$(kubectl config current-context)
-            if [ "$CTX" = "prod" ]; then 
-                echo -e "Current context: [\033[5;7;91m${CTX}\033[0m]"
-            else
-                echo -e "Current context: [\033[0;95m${CTX}\033[0m]"
-            fi
+            local CLR="INFO"
+            [ "$CTX" = "prod" ] && CLR="WARN"
+            echo -e "Current context: [$(clr $CLR $CTX)]" >&2
             ;;
         contexts|ctxs)
             kubectl config get-contexts
@@ -326,15 +405,25 @@ function k {
             ;;
         fw)
             shift
-            kfw "$@"
+            k-forward "$@"
+            ;;
+        foreach|fe|each)
+            shift
+            k-foreach "$@"
+            ;;
+        kill)
+            shift
+            kubectl delete --force --grace-period=10 "$@" 
             ;;
         *)
             if kubectl config get-contexts -o name | grep -q "^"$1"$" ; then
-                kubectl config use-context "$1"
+                kubectl config use-context "$1" >/dev/null
                 if [ $# -gt 1 ] ; then
                     shift
-                    k "$@"
-               fi
+                    ${FUNCNAME[0]} "$@"
+                else
+                    ${FUNCNAME[0]} context
+                fi
             else
                 kubectl "$@"
             fi
@@ -342,17 +431,8 @@ function k {
     esac
 }
 
-function pgcli {
-    if [ "$#" -eq 1 ] ; then
-        local dUser="postgres"
-    fi
-    source ~/dev/pgcli.venv/bin/activate
-    command pgcli -h localhost "$@" $dUser
-    deactivate
-}
-
-# Because "vi" often means "subl"
-function vi {
+# Kept for reference
+function vix {
     local EDITOR_CMD="command -p vi"
     if [ "$EDITOR" != "vi" ] ; then
         local ALT_EDITOR=${EDITOR:-subl -w}
