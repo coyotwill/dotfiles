@@ -333,27 +333,39 @@ function k-forward {
 }
 
 
-# Run kubectl command in all pods from the same deployment
+# Run kubectl 'exec' command in all selected pods 
 function k-foreach {
-    if [ $# -lt 2 ]; then
-        echo "Usage: ${FUNCNAME[0]} <POD-SELECTOR> COMMAND [-c CONTAINER] [ARGS...]"
-        echo "E.g. ${FUNCNAME[0]} server exec -- pwd"
+    if [ $# -lt 2 ] || [[ "$1" =~ -h|--help ]]; then
+        echo "Usage: ${FUNCNAME[0]} [-ti] <POD-SELECTOR> COMMAND [ARGS...]"
+        echo "<POD-SELECTOR> can be a full pod name or one of: $(k-get-all-selectors | sed 's/ /, /g')"
+        echo "E.g. ${FUNCNAME[0]} server curl localhost/rest/ping"
         return 1
     fi
 
+    local EXEC_FLAGS
+    while [[ "$1" =~ ^-[ti]+$ ]]; do # Accept any combo of -t, -i, -ti and -it
+        EXEC_FLAGS="$EXEC_FLAGS $1"
+        shift
+    done
+
+    local POD_SELECTOR="$1"
+    shift
+
     k context
-    local PODS=$(k-select "$1")
+    local PODS=$(k-select "$POD_SELECTOR")
     local NUM_PODS=$(echo $PODS | wc -w)
     [ $NUM_PODS -ge 1 ] || return 1
 
-    local K8_CMD="$2"
-    shift 2
+    local CONTAINER=$(k-get-default-container "$POD_SELECTOR")
+    if [ -n "$CONTAINER" ]; then
+        local CONTAINER_ARGS="-c $CONTAINER"
+    fi
 
-    echo -e "Running $(clr red $K8_CMD) in: $(clr green $(echo $PODS | sed 's/ /, /g'))" >&2
+    echo -e "Running in $(clr green ${CONTAINER:-default}) for: $(clr green $(echo $PODS | sed 's/ /, /g'))" >&2
     local POD
     for POD in $PODS; do 
         [ $NUM_PODS -gt 1 ] && echo -e "$(clr purple $POD)"
-        kubectl "$K8_CMD" "$POD" "$@" 
+        kubectl exec $EXEC_FLAGS $POD $CONTAINER_ARGS -- "$@"
     done
 }
 
