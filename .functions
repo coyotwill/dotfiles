@@ -402,7 +402,7 @@ function k {
             local POD=$(k-select "$2")
             local DEF_CONTNR=$(k-get-default-container "$2")
             shift 2
-            [ -n "DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
+            [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
             kubectl exec -ti $POD $DEF_CONTNR -- ${@:-bash}
             ;;
         context|ctx)
