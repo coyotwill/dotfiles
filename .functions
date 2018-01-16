@@ -335,7 +335,7 @@ function k-forward {
 
 # Run kubectl 'exec' command in all selected pods 
 function k-foreach {
-    if [ $# -lt 2 ] || [[ "$1" =~ -h|--help ]]; then
+    if [ $# -lt 2 ] || [[ "$1" =~ ^-h|^--help ]]; then
         echo "Usage: ${FUNCNAME[0]} [-ti] <POD-SELECTOR> COMMAND [ARGS...]"
         echo "<POD-SELECTOR> can be a full pod name or one of: $(k-get-all-selectors | sed 's/ /, /g')"
         echo "E.g. ${FUNCNAME[0]} server curl localhost/rest/ping"
@@ -400,6 +400,7 @@ function k {
             ;;
         bash|sh)
             local POD=$(k-select "$2")
+            [ -n "$POD" ] || return 1
             local DEF_CONTNR=$(k-get-default-container "$2")
             shift 2
             [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
