@@ -5,6 +5,8 @@
     st       = status -bs
     sti      = status -bs --ignored
     ff       = pull --ff-only
+    ffb      = !"f() { git fetch . origin/$1:$1 ; }; f"
+    pushup   = !git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)
     root     = rev-parse --show-toplevel
     branches = !script -q /dev/null git branch --list -vv | tr '\\r' '~' | cut -d '~' -f 1
     bras     = !git branches
