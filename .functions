@@ -153,12 +153,14 @@ function clr {
         blue)
             CLR_CODE="0;94";;
         magenta|purple|info)
-            CLR_CODE="0;35";;
-        warn*)
-            CLR_CODE="5;7;91";;
+            CLR_CODE="0;95";;
+        cyan)
+            CLR_CODE="0;96";;
+        warn)
+            CLR_CODE="5;91";;
     esac
     shift
-    echo -ne "\033[${CLR_CODE}m""$@""\033[0m"
+    echo -ne "\033[${CLR_CODE}m$@\033[0m"
 }
 
 # Print ON/OFF status 
@@ -407,16 +409,17 @@ function k {
             kubectl exec -ti $POD $DEF_CONTNR -- ${@:-bash}
             ;;
         context|ctx)
-            local CTX=$(kubectl config current-context)
+            local CTX=$(kubectl config current-context 2>/dev/null)
             local CLR="INFO"
-            [ "$CTX" = "prod" ] && CLR="WARN"
+            [ "$CTX" = "prod" ] && CLR="RED"
             echo -e "Current context: [$(clr $CLR $CTX)]" >&2
             ;;
+
         contexts|ctxs)
             kubectl config get-contexts
             ;;
-        cfg|conf|config)
-            ${EDITOR:-"command vi"} ~/.kube/config
+        none|off)
+            kubectl config unset current-context
             ;;
         fw)
             shift
