@@ -136,6 +136,58 @@ function wait4pid {
     done
 }
 
+function notif {
+    local NTITLE="Notification" 
+    local NSOUND='sound name "Tink"'
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -s|--silent)
+                unset NSOUND
+                shift
+                ;;
+            --ok)
+                NSOUND='sound name "-"'
+                shift
+                ;;
+            --ko)
+                NSOUND='sound name "Basso"'
+                shift
+                ;;
+            -f|--from-status)
+                if [ $2 -eq 0 ]; then
+                    NTITLE='Success'
+                    NSOUND='sound name "-"'
+                else
+                    NTITLE='Failure'
+                    NSOUND='sound name "Basso"'
+                fi
+                shift 2
+                ;;
+            -t|--title)
+                NTITLE="$2"
+                shift 2
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    osascript -e 'display notification "'"$@"'" with title "'"$NTITLE"'"'"$NSOUND"
+}
+
+function term-colors {   
+    for COLR in {30..37}; do 
+      HI_COLR=$(($COLR+60))
+      echo -en "$COLR=\033[7;${COLR}m    \033[0m|\033[${COLR}mRegular\033[0m|\033[1;${COLR}mBold\033[0m"
+      echo -en "    "
+      echo -e  "$HI_COLR=\033[7;${HI_COLR}m    \033[0m|\033[${HI_COLR}mRegular\033[0m|\033[1;${HI_COLR}mBold\033[0m"
+    done
+}
+
 # Echo color escape sequence
 function clr {
     local CLR_CODE="0"
@@ -206,6 +258,7 @@ function rebuild {
         esac
     done
     mvn clean install -Pdev $offline $plst 
+    notif --from-status $? "Project rebuilt"
 }
 
 
@@ -244,6 +297,7 @@ function retest {
 
     echo "Now testing: $1"
     docker-compose run --rm --service-ports server mvn test -pl server $offline $dbg_args -Dtest="$1"
+    notif --from-status $? "Test done"
 }
 
 
