@@ -217,7 +217,7 @@ function clr {
             CLR_CODE="5;91";;
     esac
     shift
-    echo -ne "\033[${CLR_CODE}m$@\033[0m"
+    echo -ne "\x01\033[${CLR_CODE}m\x02$@\x01\033[0m\x02"
 }
 
 # Print ON/OFF status 
