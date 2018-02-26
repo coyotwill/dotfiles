@@ -131,6 +131,11 @@ function lsop {
 
 # Wait until process is terminated
 function wait4pid {
+    # Try to use the `wait` bash builtin
+    wait "$1" 2>/dev/null
+    [ $? -ne 127 ] && return
+    # Status code 127 means that `wait` failed. Probably because
+    # we tried to wait for a non-child process. ->fallback to polling
     while ps -p "$1" >/dev/null 2>&1; do 
         sleep 0.333
     done
