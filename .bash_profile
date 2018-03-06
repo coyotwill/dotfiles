@@ -22,6 +22,7 @@ export GREP_OPTIONS="--color"
 export EDITOR="subl -w"
 
 function __k8_ps1 {
+    [ -f ~/.kube/config ] || return
     local K8CTX=$(cat ~/.kube/config | grep current-context | cut -d ' ' -f '2-' | tr -d '"')
     [ -n "$K8CTX" ] || return
     local ICOLR=blue CCOLR=blue
