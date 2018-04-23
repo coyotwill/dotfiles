@@ -305,6 +305,29 @@ function retest {
     notif --from-status $? "Test done"
 }
 
+# Native VPN as a service
+function vpn {
+    case "$1" in
+        start)
+            scutil --nc start "$2" | head -n1
+            ;;
+        stop)
+            scutil --nc stop "$2"
+            ;;
+        status)
+            local vpn_connected=$(scutil --nc status "$2" | head -n1)
+            echo $vpn_connected
+            [ "$vpn_connected" == "Connected" ]
+            ;;
+        list|ls)
+            scutil --nc list | grep -v "PPP --> LPSS"
+            ;;
+        *)
+            echo "Usage: ${FUNCNAME[0]} list|start|stop|status CONNECTION_NAME"
+            ;;
+    esac
+}
+
 
 # Adding aliases capabilities to docker-compose
 function dc {
