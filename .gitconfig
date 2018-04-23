@@ -28,14 +28,17 @@
     # algorithm = patience
 [difftool]
 	prompt = false
+[difftool  "deltawalker"]
+    cmd =  open -n -a DeltaWalker --wait-apps --args "$LOCAL" "$REMOTE"
 [merge]
 	tool = deltawalker
+    # tool = p4merge
+[mergetool]
+    keepBackup = false
+    keepTemporaries = false
+    prompt = false
 [mergetool "p4merge"]
     keepTemporaries = false
     prompt = false
-[difftool  "deltawalker"]
-	cmd = '/Applications/DeltaWalker.app/Contents/Resources/git-diff' "$LOCAL" "$REMOTE"
-[mergetool]
-	keepBackup = false
 [mergetool  "deltawalker"]
-	cmd = '/Applications/DeltaWalker.app/Contents/Resources/git-merge' "$LOCAL" "$REMOTE" "$BASE" "$MERGED"
+    cmd = open -n -a DeltaWalker --wait-apps --args "$LOCAL" "$REMOTE" "$BASE" -merged="$MERGED"
