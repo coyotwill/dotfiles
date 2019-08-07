@@ -20,6 +20,8 @@
     dw       = !"f() { git diff $1... -- $2 ; }; f"
     ### cat file $2 at revision $1
     cat      = !"f() { git show $1:$2 ; }; f"
+    locate   = !"f() { git grep $1 $(git rev-list --all) ; }; f"
+    target   = log -p --all -S
 [core]
     excludesfile = ~/.gitignore
     whitespace = cr-at-eol,tab-in-indent
