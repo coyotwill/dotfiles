@@ -421,7 +421,7 @@ function k-forward {
 function k-foreach {
     if [ $# -lt 2 ] || [[ "$1" =~ ^-h|^--help ]]; then
         echo "Usage: ${FUNCNAME[0]} [-ti] <POD-SELECTOR> COMMAND [ARGS...]"
-        echo "<POD-SELECTOR> can be a full pod name or one of: $(k-get-all-selectors | sed 's/ /, /g')"
+        echo "<POD-SELECTOR> can be a full pod name or one of: $(k-get-selector)"
         echo "E.g. ${FUNCNAME[0]} server curl localhost/rest/ping"
         return 1
     fi
@@ -455,9 +455,9 @@ function k-foreach {
 
 # Select pod(s) by name or short-name
 function k-select {
-    local SELECTOR=$(k-get-selector "$1") # defined in .devenv
-    if [ -n "$SELECTOR" ]; then
-        kubectl get pods -l run=$SELECTOR -o jsonpath="{.items[*].metadata.name}"
+    local LABEL=$(k-get-selector "$1" label) # defined in .devenv
+    if [ -n "$LABEL" ]; then
+        kubectl get pods -l "$LABEL" -o jsonpath="{.items[*].metadata.name}"
     else
         local PODS=$(kubectl get pods "$1" -o name)
         if [ $? -eq 0 ]; then
@@ -468,10 +468,19 @@ function k-select {
     fi
 }
 
+function k-get-default-container {
+    # Try well-known pods (defined in .devenv)
+    k-get-selector "$1" container && return 0
+    # Else get  first container in POD
+    local CONTNRS=$(kubectl get pod "$1" -o jsonpath='{.spec.containers[?(@.name!="filebeat")].name}')
+    [ -n "$CONTNRS" ] || return 1
+    echo $CONTNRS | cut -d ' ' -f 1
+}
+
 # Adding aliases capabilities to kubectl
 function k {
     case "$1" in
-        po|pod|pods|no|node|nodes)
+        po|pod|pods|no|node|nodes|ep|endpoint|endpoints|svc|service|services)
             ${FUNCNAME[0]} context 
             if [ $# -gt 1 ] && [ "${2:0:1}" != "-" ]; then
                 local RESOURCE="$1"
@@ -484,11 +493,13 @@ function k {
             ;;
         bash|sh)
             local POD=$(k-select "$2")
-            [ -n "$POD" ] || return 1
+            local NUM_PODS=$(echo $POD | wc -w)
+            [ $NUM_PODS -eq 0 ] && return 1
+            [ $NUM_PODS -gt 1 ] && echo "$(clr red Too many pods): $POD" && return 1
             local DEF_CONTNR=$(k-get-default-container "$2")
             shift 2
             [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
-            kubectl exec -ti $POD $DEF_CONTNR -- ${@:-bash}
+            kubectl exec -ti $POD $DEF_CONTNR -- "${@:-bash}"
             ;;
         context|ctx)
             local CTX=$(kubectl config current-context 2>/dev/null)
