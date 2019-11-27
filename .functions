@@ -5,6 +5,21 @@ function title {
     printf "\e]0;$*\a"
 }
 
+function cisco_vpn {
+    case "$1" in
+        on|start)
+            sudo launchctl load -w /Library/LaunchDaemons/*cisco*
+            ;;
+        off|stop)
+            sudo launchctl unload -w /Library/LaunchDaemons/*cisco*
+            shift 2
+            ;;
+        *)
+            echo "Usage: ${FUNCNAME[0]} on|off"
+            ;;
+    esac
+}
+
 function getHost {
     local item
     for item in ComputerName HostName LocalHostName; do
