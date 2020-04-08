@@ -378,7 +378,7 @@ function dc {
 
 # Compact and readable docker ps output
 function dps {
-    local IMAGE='{{join (split (js .Image) "'${MOBI_REGISTRY}'") "@"}}'
+    local IMAGE='{{join (split (js .Image) "'${ART_SERVER}'") "@"}}'
     local PORTS='{{with join (split (printf "%s" .Ports) "0.0.0.0:") ""}}{{join (split . "/tcp") ""}}{{end}}'
     docker ps -a --format 'table {{.ID}}\t'"$IMAGE"'\t{{.RunningFor}}\t{{.Status}}\t'"$PORTS"'\t{{.Names}}' | alt
 }
