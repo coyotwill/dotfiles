@@ -111,6 +111,31 @@ function hl {
     cat - | egrep "$@|$"
 }
 
+# Activate virtualenv in current directory tree
+function venv {
+    local VENVS=$(find . -type f -path "*/bin/activate")
+    local NUM_VENVS=$(echo $VENVS | wc -w)
+    if [ $NUM_VENVS -gt 1 ]; then
+        echo "Too many virtual envs:"
+        echo $VENVS
+    elif [ $NUM_VENVS -eq 1 ]; then
+        source $VENVS && echo Switched to $(clr green $(basename "$VIRTUAL_ENV"))
+    else
+        echo $(clr red "No virtual env found in the current path")
+    fi  
+}
+
+# Run a command in all sub-folders that contain a python venv
+function venv-foreach {
+    local ACTIVATE_PATH PROJECT
+    for ACTIVATE_PATH in $(find . -type f -path "*/bin/activate"  | sort)
+    do
+        PROJECT=$(dirname $(dirname $(dirname "$ACTIVATE_PATH")))
+        echo -e "$(clr purple $PROJECT)"
+        (source $ACTIVATE_PATH; cd "$PROJECT"; eval "$@"; deactivate)
+        echo
+    done
+}
 
 # Run a git command in all sub-folders that are git repositories
 function git-foreach {
