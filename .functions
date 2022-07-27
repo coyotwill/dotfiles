@@ -65,31 +65,6 @@ function get-keychain-pw {
    security find-generic-password -w -l "$1"
 }
 
-# find-in-files using find & grep
-function fif {
-    local FIND_OPTS GREP_OPTS
-    while [ $# -gt 1 ]; do
-        case "$1" in
-            -i|-q|-l|-n|-h|-E)
-                GREP_OPTS="$GREP_OPTS $1"
-                shift
-                ;;
-            -name|-iname|-path|-ipath|-depth|-maxdepth)
-                FIND_OPTS="$FIND_OPTS $1 $2"
-                shift 2
-                ;;
-            -and|-not|-or)
-                FIND_OPTS="$FIND_OPTS $1"
-                shift
-                ;;
-            *)
-                break
-                ;;
-        esac
-    done
-    find . -not -path "*/.git/*" -type f $FIND_OPTS -exec fgrep -I $GREP_OPTS "$@" {} +
-}
-
 # Recursive find-in-file using fgrep -R
 # Add -E option to use regex
 function rgrep {
@@ -341,7 +316,7 @@ function retest {
     [ -z "$skip_build" ] && rebuild $offline
 
     echo "Now testing: $1"
-    docker-compose run --rm --service-ports server mvn test -pl server $offline $dbg_args -Dtest="$1"
+    docker compose run --rm --service-ports server mvn test -pl server $offline $dbg_args -Dtest="$1"
     notif --from-status $? "Test done"
 }
 
@@ -398,7 +373,7 @@ function dc {
             fi
             ;;
     esac
-    docker-compose $DC_CMD "$@"
+    docker compose $DC_CMD "$@"
 }
 
 # Compact and readable docker ps output
@@ -541,6 +516,17 @@ function k {
             [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
             kubectl exec -ti $POD $DEF_CONTNR -- "${@:-bash}"
             ;;
+        logs|plogs|tail)
+            local POD=$(k-select "$2")
+            local DEF_CONTNR="$3"
+            [ -n "$DEF_CONTNR" ] || DEF_CONTNR=$(k-get-default-container "$2")
+            [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
+            local LOG_ARGS
+            [ "$1" == "logs" ] && LOG_ARGS="--tail=-1"
+            [ "$1" == "plogs" ] && LOG_ARGS="--tail=-1 -p"
+            [ "$1" == "tail" ] && LOG_ARGS="--tail=1 -f"
+            kubectl logs $POD $DEF_CONTNR $LOG_ARGS
+            ;;
         context|ctx)
             local CTX=$(kubectl config current-context 2>/dev/null)
             local CLR="INFO"
@@ -580,32 +566,6 @@ function k {
             fi
             ;;
     esac
-}
-
-# Kept for reference
-function vix {
-    local EDITOR_CMD="command -p vi"
-    if [ "$EDITOR" != "vi" ] ; then
-        local ALT_EDITOR=${EDITOR:-subl -w}
-        local RESP TIMEOUT_ITER=3
-        local RESP
-        echo -n "Vi for real ? I'll run '$ALT_EDITOR' instead [Y/n] $TIMEOUT_ITER "
-        until read -n 1 -r -t 1 RESP; do
-            TIMEOUT_ITER=$(($TIMEOUT_ITER-1))
-            echo -n "$TIMEOUT_ITER "
-            if [ $TIMEOUT_ITER -le 0 ]; then RESP="Y"; break; fi
-        done
-        # A key, but not 'return' was pressed
-        if [ "$RESP" != "" ]; then echo; fi
-        # N or Escape
-        if [ "$RESP" = "n" ] || [ "$RESP" = "N" ] || [ "$RESP" = $'\e' ] ; then
-            echo fine...
-        else
-            echo "I knew it !"
-            EDITOR_CMD=$ALT_EDITOR
-        fi
-    fi
-    $EDITOR_CMD $@
 }
 
 # Interact with the docker for mac xhyve VM
