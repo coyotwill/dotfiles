@@ -2,7 +2,7 @@
 
 # various flavors of ls
 alias ll="ls -Alh"
-alias lrt="ls -Alhrt"
+alias lrt="script -q /dev/null ls -Alhrt | tail"
 
 # Fat fingers
 alias alais="alias"
@@ -40,3 +40,4 @@ alias up='cd ./$(git rev-parse --show-cdup)'
 alias gs="git st"
 alias dl='cd ~/Downloads'
 alias flush-dns='echo -n "Sudo " && sudo killall -HUP mDNSResponder'
+alias jhomes='/usr/libexec/java_home -V'

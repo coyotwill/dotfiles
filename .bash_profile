@@ -1,3 +1,5 @@
+export BASH_SILENCE_DEPRECATION_WARNING=1
+
 if [ -f $HOME/.devenv ]; then
     source $HOME/.devenv
     alias devenv='${EDITOR:-"command vi"} ~/.devenv && source ~/.devenv'
@@ -20,6 +22,7 @@ fi
 export CLICOLOR=1
 export GREP_OPTIONS="--color"
 export EDITOR="subl -w"
+export PIP_REQUIRE_VIRTUALENV=true
 
 function __k8_ps1 {
     [ -f ~/.kube/config ] || return

@@ -3,15 +3,16 @@
 [alias]
     co       = checkout
     st       = status -bs
-    sti      = status -bs --ignored
     ff       = pull --ff-only
+    syncm    = submodule update --init --recursive
     ffb      = !"f() { git fetch . origin/$1:$1 ; }; f"
     pushup   = !git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)
     root     = rev-parse --show-toplevel
     branches = !script -q /dev/null git branch --list -vv | tr '\\r' '~' | cut -d '~' -f 1
     bras     = !git branches
     bra      = branch
-    ls       = ls-files
+    ls       = !bash -c 'sort -uk 2bi <(git -c color.status=always status -s $GIT_PREFIX) <(git ls-files $GIT_PREFIX| sed \"s/^/ . /\")'
+    lsi      = status -bs --ignored
     glog     = log --pretty=format:'%C(yellow)%h %C(green)%ad%C(red)%d %C(reset)%s %C(blue)[%cn]%C(reset)' --decorate --date=short --graph
     aliases  = !git config --get-regexp 'alias.*' | colrm 1 6 | sed 's/\\([^ ]* \\)/'`printf '\\033[32m%s\\033[0m' '\\1'`'\t/'
     ### list modified files in current repository with common ancestor from revision $1
