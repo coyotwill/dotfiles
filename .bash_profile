@@ -19,6 +19,11 @@ if [ -f /usr/local/etc/bash_completion ]; then
     source /usr/local/etc/bash_completion
 fi
 
+if [ -f /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+
+
 export CLICOLOR=1
 export GREP_OPTIONS="--color"
 export EDITOR="subl -w"
