@@ -384,20 +384,34 @@ function dps {
 }
 
 # Setup kubectl port-forwarding
-# Default port is 5432 for postgres, but can be changed
 function k-forward {
-    local LOCAL_PORT=${2:-5432}
+    case "$1" in
+        help|-h|--help)
+            echo "Usage: ${FUNCNAME[0]} <POD-SELECTOR>|stop|restart|status|ls LOCAL_PORT [FORWARD_PORT]"
+            return
+            ;;
+        list|ls|"")
+            pgrep -lf "kubectl port-forward" | hl "[0-9]+$"
+            [ $? -eq 0 ] || echo "No port-forwarding process found"
+            return
+            ;;
+        *)
+            if [ $# -lt 2 ]; then
+                ${FUNCNAME[0]} help
+                return
+            fi
+            ;;
+    esac
+
+    local LOCAL_PORT=$2   
     local FORWARD_PORT=${3:-$LOCAL_PORT}
     local FW_PID=$(lsof -tPni4:$LOCAL_PORT -sTCP:LISTEN)
     if [ -n "$FW_PID" ]; then
-        local FW_NODE=$(ps -e -o command= $FW_PID | cut -d ' ' -f 3)
+        local FW_NODE=$(ps -e -o command= $FW_PID | grep "port-forward" | cut -d ' ' -f 3)
+        
     fi
 
     case "$1" in
-        help|-h|--help)
-            echo "Usage: ${FUNCNAME[0]} <POD-SELECTOR>|stop|restart|status [LOCAL_PORT [FORWARD_PORT]]"
-            echo "Default forward port is 5432, for postgres"
-            ;;
         stop)
             if [ -n "$FW_PID" ]; then
                kill $FW_PID
@@ -405,14 +419,14 @@ function k-forward {
             fi
             ${FUNCNAME[0]} status $LOCAL_PORT
             ;;
-        re*)
+        restart)
             ${FUNCNAME[0]} stop $LOCAL_PORT
             if [ -n "$FW_NODE" ]; then
                 ${FUNCNAME[0]} $FW_NODE $LOCAL_PORT $FORWARD_PORT
             fi
             ;;
-        status|"")
-            echo -e "Port forwarding $(clr red $FW_NODE):$LOCAL_PORT->$FORWARD_PORT is $(on-off $FW_PID)"
+        st|status)
+            echo -e "Port forwarding $(clr red $FW_NODE):$LOCAL_PORT->$FORWARD_PORT is $(on-off $FW_NODE)"
             ;;
         *)
             if [ -z "$FW_PID" ]; then
@@ -495,15 +509,17 @@ function k-get-default-container {
 # Adding aliases capabilities to kubectl
 function k {
     case "$1" in
-        po|pod|pods|no|node|nodes|ep|endpoint|endpoints|svc|service|services)
+        po|pod|pods|no|node|nodes|ep|endpoint|endpoints|svc|service|services|vs)
             ${FUNCNAME[0]} context 
+            local RESOURCE="$1"
+            [ "$RESOURCE" == "vs" ] && RESOURCE="virtualservices"
             if [ $# -gt 1 ] && [ "${2:0:1}" != "-" ]; then
-                local RESOURCE="$1"
                 local GREP_STR="$2"
                 shift 2
                 kubectl get "$RESOURCE" "$@" | grep "$GREP_STR"
             else 
-                kubectl get "$@"
+                shift
+                kubectl get "$RESOURCE" "$@"
             fi
             ;;
         bash|sh)
@@ -519,6 +535,7 @@ function k {
         logs|plogs|tail)
             local POD=$(k-select "$2")
             local DEF_CONTNR="$3"
+            [ "$DEF_CONTNR" == "all" ] && DEF_CONTNR="--all-containers=true"
             [ -n "$DEF_CONTNR" ] || DEF_CONTNR=$(k-get-default-container "$2")
             [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
             local LOG_ARGS
@@ -540,7 +557,7 @@ function k {
         none|off)
             kubectl config unset current-context
             ;;
-        fw)
+        fw|forward)
             shift
             k-forward "$@"
             ;;

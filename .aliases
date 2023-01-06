@@ -33,6 +33,7 @@ alias pc="script -q /dev/null"
 # Shortcuts
 alias p4="p4merge"
 alias delta="open -a DeltaWalker --args"
+alias pycharm="open -na 'PyCharm CE' --args"
 alias gup="gitup"
 alias spotify="appify https://play.spotify.com"
 alias ff="find . -type f -name"
@@ -41,3 +42,6 @@ alias gs="git st"
 alias dl='cd ~/Downloads'
 alias flush-dns='echo -n "Sudo " && sudo killall -HUP mDNSResponder'
 alias jhomes='/usr/libexec/java_home -V'
+alias pipup='pip install --isolated -U pip'
+alias pipreq='pip install -r requirements.txt'
+alias k9s='command k9s -c pods -n "$(kubectl config view --minify --output 'jsonpath={..namespace}')"'

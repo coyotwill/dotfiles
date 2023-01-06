@@ -33,8 +33,13 @@ function __k8_ps1 {
     [ -f ~/.kube/config ] || return
     local K8CTX=$(cat ~/.kube/config | grep current-context | cut -d ' ' -f '2-' | tr -d '"')
     [ -n "$K8CTX" ] || return
-    local ICOLR=blue CCOLR=blue
-    [ "$K8CTX" = "prod" ] && ICOLR=warn && CCOLR=red
+    local ICOLR CCOLR
+    case "$K8CTX" in 
+        *dev) ICOLR=ok   ; CCOLR=ok ;;
+        *int) ICOLR=blue ; CCOLR=blue ;;
+        *x)   ICOLR=warn ; CCOLR=red ;;
+        *)    ICOLR=info ; CCOLR=info ;;
+    esac
     echo "[$(clr $ICOLR '\xE2\x8e\x88\x20')$(clr $CCOLR "$K8CTX")]" 
 }
 
