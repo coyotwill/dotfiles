@@ -71,14 +71,39 @@ function rgrep {
     fgrep -RI --exclude-dir=".git" "$@" .
 }
 
-# find-in-files using git. This is the fastest but lack options that find provides
+# find-in-files using git. This is faster that rgrep above
 # use -a option to search all files, including the one that are not tracked by git.
 function ggrep {
-    if [ "$1" = "-a" ] ; then
-        local GG_OPTS="--untracked --no-exclude-standard"
-        shift
-    fi
-    git --no-pager grep $GG_OPTS -FI "$@"
+    local EXCLUDED GG_OPTS
+    while [ $# -ge 1 ]; do
+        case "$1" in 
+            -a | --all)
+                GG_OPTS="--untracked --no-exclude-standard"
+                shift
+                ;;
+            -t | --xt | --exclude-tests)
+                EXCLUDED="$EXCLUDED :(exclude)tests/ :(exclude)system_tests/ :(exclude)integ_tests/ :(exclude)src/test/"
+                shift
+                ;;
+            -p | --xp | --exclude-payloads)
+                EXCLUDED="$EXCLUDED :(exclude)requests/ :(exclude)src/test/resources/requests/ :(exclude)grpcurl/  :(exclude)tests/system_tests/payloads"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    if [ $# -lt 1 ]; then
+        echo "Usage: ${FUNCNAME[0]}" [-atp] [options] search-term
+        echo "  -a, --all: Grep all files, including untracked and ignored files"
+        echo "  -t, --xt : Exclude common tests folders"
+        echo "  -p, --xp : Exclude common payloads folders"
+        echo "  [option] : Additional options will be passed to git grep"
+        return
+    fi 
+    git --no-pager grep $GG_OPTS -FI "$@" -- $EXCLUDED
 }
 
 # Use grep to higlight occurences, but print whole input.
@@ -114,12 +139,19 @@ function venv-foreach {
 
 # Run a git command in all sub-folders that are git repositories
 function git-foreach {
-    local REPO_DOT_GIT REPO
+    local REPO_DOT_GIT REPO DIRECT_BASH
+
+    [ "$1" = "-b" -o "$1" = "--bash" ] && shift && DIRECT_BASH=1
+
     for REPO_DOT_GIT in $(find . -type d -name ".git" | sort)
     do
         REPO=$(dirname "$REPO_DOT_GIT")
         echo -e "$(clr purple $REPO)"
-        git -C "$REPO" "$@"
+        if [ $DIRECT_BASH ]; then
+            (cd "$REPO" && "$@")
+        else
+            git -C "$REPO" "$@"
+        fi
         echo
     done
 }

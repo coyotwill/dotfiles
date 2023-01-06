@@ -8,20 +8,26 @@
     ffb      = !"f() { git fetch . origin/$1:$1 ; }; f"
     pushup   = !git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)
     root     = rev-parse --show-toplevel
+    each     = !bash -c 'source $HOME/.functions && git-foreach \"$0\" \"$@\"'
+    foreach  = each
+    grep-each = each -b ggrep
     branches = !script -q /dev/null git branch --list -vv | tr '\\r' '~' | cut -d '~' -f 1
     bras     = !git branches
     bra      = branch
     ls       = !bash -c 'sort -uk 2bi <(git -c color.status=always status -s $GIT_PREFIX) <(git ls-files $GIT_PREFIX| sed \"s/^/ . /\")'
     lsi      = status -bs --ignored
-    glog     = log --pretty=format:'%C(yellow)%h %C(green)%ad%C(red)%d %C(reset)%s %C(blue)[%cn]%C(reset)' --decorate --date=short --graph
-    aliases  = !git config --get-regexp 'alias.*' | colrm 1 6 | sed 's/\\([^ ]* \\)/'`printf '\\033[32m%s\\033[0m' '\\1'`'\t/'
-    ### list modified files in current repository with common ancestor from revision $1
+    lol      = log --pretty=format:'%C(red)%h%C(reset) -%C(yellow)%d %C(reset)%s %C(green)(%as) %C(blue)<%an>%C(reset)' --graph
+    lola     = lol --all
+    nl       = lol -n 10
+    aliases  = !git config --get-regexp '^alias\\.*' | sed -e 's/^alias./'$(printf '\\033[32m')'/' -e 's/ /'$(printf '\\033[0m\\013')'/' | column -t -s $(printf '\\013')
+     ### list modified files in current repository with common ancestor from revision $1
     df       = !"f() { git diff --name-status $1... | sed 's/^M/'`printf '\\033[32mM\\033[0m'`'/' | sed 's/^D/'`printf '\\033[31mD\\033[0m'`'/'; }; f"
     ### diff current version of file $2 with common ancestor from revision $1
     dw       = !"f() { git diff $1... -- $2 ; }; f"
     ### cat file $2 at revision $1
     cat      = !"f() { git show $1:$2 ; }; f"
     locate   = !"f() { git grep $1 $(git rev-list --all) ; }; f"
+    ### Locate commits that modified/deleted/added the specified string in the past
     target   = log -p --all -S
 [core]
     excludesfile = ~/.gitignore
