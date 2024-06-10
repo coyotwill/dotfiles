@@ -7,7 +7,9 @@
     syncm    = submodule update --init --recursive
     ffb      = !"f() { git fetch . origin/$1:$1 ; }; f"
     pushup   = !git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)
-    root     = rev-parse --show-toplevel
+    up       = rev-parse --show-cdup
+    top      = rev-parse --show-toplevel
+    parent   = rev-parse --show-superproject-working-tree
     each     = !bash -c 'source $HOME/.functions && git-foreach \"$0\" \"$@\"'
     foreach  = each
     grep-each = each -b ggrep

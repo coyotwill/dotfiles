@@ -108,7 +108,11 @@ function ggrep {
 
 # Use grep to higlight occurences, but print whole input.
 function hl {
-    cat - | egrep "$@|$"
+    if [ "$1" == "-i" ]; then
+         local GREP_PARAMS="-i"
+         shift
+    fi
+    cat - | egrep $GREP_PARAMS "$@|$"
 }
 
 # Activate virtualenv in current directory tree
@@ -119,7 +123,7 @@ function venv {
         echo "Too many virtual envs:"
         echo $VENVS
     elif [ $NUM_VENVS -eq 1 ]; then
-        source $VENVS && echo Switched to $(clr green $(basename "$VIRTUAL_ENV"))
+        source $VENVS && echo Switched to $(clr green "$VIRTUAL_ENV")
     else
         echo $(clr red "No virtual env found in the current path")
     fi  
@@ -282,76 +286,6 @@ function alt {
     done
 }
 
-# Rebuild project with fastest options
-function rebuild {
-    if [ "$1" = "-h" ] || [ "$1" = "--help" ] ; then
-        echo "Usage: ${FUNCNAME[0]} [-h] [-a] [-o]"
-        echo "  -h : Print help"
-        echo "  -a : Build all subprojects, not only server"
-        echo "  -o : Online (negates the offline flag)"
-        return 
-    fi
-
-    local plst="-pl .,core,server"
-    local offline="-o"
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -a)
-                unset plst
-                shift
-                ;;
-            -o)
-                unset offline
-                shift
-                ;;
-            *)
-                break
-                ;;
-        esac
-    done
-    mvn clean install -Pdev $offline $plst 
-    notif --from-status $? "Project rebuilt"
-}
-
-
-# Rebuild project and run unit tests
-function retest {
-    if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ] ; then
-        echo "Usage: ${FUNCNAME[0]} [-h] [-s] [-d] <test>"
-        echo "  -h : Print help"
-        echo "  -s : Skip build+install phases"
-        echo "  -o : Online (negates the offline flag)"
-        echo "  -d : Run in debug mode"
-        return
-    fi
-
-    local offline="-o"
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -d)
-                local dbg_args="-Dmaven.surefire.debug"
-                shift
-                ;;
-            -s)
-                local skip_build="skip"
-                shift
-                ;;
-            -o)
-                unset offline
-                shift
-                ;;
-            *)
-                break
-                ;;
-        esac
-    done
-    [ -z "$skip_build" ] && rebuild $offline
-
-    echo "Now testing: $1"
-    docker compose run --rm --service-ports server mvn test -pl server $offline $dbg_args -Dtest="$1"
-    notif --from-status $? "Test done"
-}
-
 # Native VPN as a service
 function vpn {
     case "$1" in
@@ -482,7 +416,7 @@ function k-forward {
 function k-foreach {
     if [ $# -lt 2 ] || [[ "$1" =~ ^-h|^--help ]]; then
         echo "Usage: ${FUNCNAME[0]} [-ti] <POD-SELECTOR> COMMAND [ARGS...]"
-        echo "<POD-SELECTOR> can be a full pod name or one of: $(k-get-selector)"
+        echo "<POD-SELECTOR> can be a full pod name or one of: $(get-instance-shortcuts)"
         echo "E.g. ${FUNCNAME[0]} server curl localhost/rest/ping"
         return 1
     fi
@@ -516,32 +450,22 @@ function k-foreach {
 
 # Select pod(s) by name or short-name
 function k-select {
-    local LABEL=$(k-get-selector "$1" label) # defined in .devenv
+    local LABEL=$(get-instance-label "$1") # defined in .devenv
     if [ -n "$LABEL" ]; then
-        kubectl get pods -l "$LABEL" -o jsonpath="{.items[*].metadata.name}"
+        kubectl get pods -l "$LABEL" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
     else
-        local PODS=$(kubectl get pods "$1" -o name)
-        if [ $? -eq 0 ]; then
-            echo $PODS | cut -d / -f 2
-        else
-            return 1
-        fi
+        (kubectl get pods "$1" -o name > /dev/null) && echo $1
     fi
 }
 
 function k-get-default-container {
-    # Try well-known pods (defined in .devenv)
-    k-get-selector "$1" container && return 0
-    # Else get  first container in POD
-    local CONTNRS=$(kubectl get pod "$1" -o jsonpath='{.spec.containers[?(@.name!="filebeat")].name}')
-    [ -n "$CONTNRS" ] || return 1
-    echo $CONTNRS | cut -d ' ' -f 1
+    kubectl get pod $1 -o jsonpath='{.metadata.annotations.kubectl\.kubernetes\.io/default-container}'
 }
 
 # Adding aliases capabilities to kubectl
 function k {
     case "$1" in
-        po|pod|pods|no|node|nodes|ep|endpoint|endpoints|svc|service|services|vs)
+        po|pod*|no|node*|ep|svc|vs|cid)
             ${FUNCNAME[0]} context 
             local RESOURCE="$1"
             [ "$RESOURCE" == "vs" ] && RESOURCE="virtualservices"
@@ -554,26 +478,45 @@ function k {
                 kubectl get "$RESOURCE" "$@"
             fi
             ;;
+        get)
+            local RESOURCE="$2"
+            [ "$RESOURCE" == "vs" ] && RESOURCE="virtualservices"
+            shift 2
+            kubectl get $RESOURCE $@
+            ;;
+        desc)
+            shift 1
+            kubectl describe pod $@
+            ;;            
         bash|sh)
             local POD=$(k-select "$2")
             local NUM_PODS=$(echo $POD | wc -w)
             [ $NUM_PODS -eq 0 ] && return 1
             [ $NUM_PODS -gt 1 ] && echo "$(clr red Too many pods): $POD" && return 1
-            local DEF_CONTNR=$(k-get-default-container "$2")
+            local DEF_CONTNR=$(k-get-default-container "$POD")
             shift 2
             [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
             kubectl exec -ti $POD $DEF_CONTNR -- "${@:-bash}"
             ;;
         logs|plogs|tail)
             local POD=$(k-select "$2")
+            local NUM_PODS=$(echo $POD | wc -w)
+            [ $NUM_PODS -eq 0 ] && return 1
+            [ $NUM_PODS -gt 1 ] && echo "$(clr red Too many pods): $POD" && return 1
             local DEF_CONTNR="$3"
-            [ "$DEF_CONTNR" == "all" ] && DEF_CONTNR="--all-containers=true"
-            [ -n "$DEF_CONTNR" ] || DEF_CONTNR=$(k-get-default-container "$2")
-            [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
+            if [ "$DEF_CONTNR" == "all" ]; then
+                DEF_CONTNR="--all-containers=true --max-log-requests=10"
+            elif [ -n "$DEF_CONTNR" ]; then
+                DEF_CONTNR="-c $DEF_CONTNR"
+            else
+                DEF_CONTNR=$(k-get-default-container $POD)
+                [ -n "$DEF_CONTNR" ] && DEF_CONTNR="-c $DEF_CONTNR"
+            fi
             local LOG_ARGS
             [ "$1" == "logs" ] && LOG_ARGS="--tail=-1"
             [ "$1" == "plogs" ] && LOG_ARGS="--tail=-1 -p"
             [ "$1" == "tail" ] && LOG_ARGS="--tail=1 -f"
+            echo CMD: kubectl logs $POD $DEF_CONTNR $LOG_ARGS
             kubectl logs $POD $DEF_CONTNR $LOG_ARGS
             ;;
         context|ctx)
@@ -584,7 +527,7 @@ function k {
             ;;
 
         contexts|ctxs)
-            kubectl config get-contexts
+            kubectl config get-contexts | awk 'NR==1 {print "\033[95m" $0 "\033[0m"; next} /\*/ {print "\033[91m" $0 "\033[0m"; next} {print}'
             ;;
         none|off)
             kubectl config unset current-context
@@ -604,12 +547,7 @@ function k {
         *)
             if kubectl config get-contexts -o name | grep -q "^"$1"$" ; then
                 kubectl config use-context "$1" >/dev/null
-                if [ $# -gt 1 ] ; then
-                    shift
-                    ${FUNCNAME[0]} "$@"
-                else
-                    ${FUNCNAME[0]} context
-                fi
+                ${FUNCNAME[0]} context
             else
                 kubectl "$@"
             fi
